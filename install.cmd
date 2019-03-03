@@ -11,7 +11,8 @@ goto end
 echo Error: No pip installed.
 goto end
 :success
-pip install -r "%~dp0requirements.txt"
+pip install -r "%~dp0files/requirements.txt"
+python "%~dp0files/moveAll.py"
 python "%~dp0watch.py" -s
 goto eof
 :end

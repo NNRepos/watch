@@ -1,17 +1,17 @@
 #https://www.pythoncentral.io/introduction-to-sqlite-in-python/
-import argparse,sqlite3,csv,os
+import argparse
+import sqlite3
+import csv
+import json
 from os import path
 from datetime import datetime
-#import ,re,os,tk,etc.
-#TODO: sys.executable and install everything in python27/scripts
+
+#parameters
+DEFAULT_VLC_PATH = r"C:\Program Files (x86)\VideoLAN\VLC\vlc.exe"
+USER_HOME = path.expanduser('~')
+
 def watch():
     try:
-        #some parameters
-        DEFAULT_VLC_PATH = "C:\Program Files (x86)\VideoLAN\VLC\vlc.exe"
-        USER_HOME = path.expanduser('~')
-        CMD_FILE_CONTENT = r"python watch.py %1 %2 %3 %4 %5 %6 %7 %8 %9"
-        CMD_FILE_NAME = r"watch.cmd"
-        
         args = parse() #-h stops here
         print vars(args) #TODO: delete this line when done
         #get settings and db
@@ -20,7 +20,7 @@ def watch():
         settings_path = path.join(cwd, "settings")
         if path.isfile(settings_path):
             settings_dict = read_settings(settings_path)
-        elif not settings_flag:
+        elif not args.settings_flag:
             raise Exception("The settings file is missing or corrupt. Please use 'watch -s'")
         else:
             settings_dict = None
@@ -30,35 +30,35 @@ def watch():
         if not db_exists: #new db
             cursor.execute('''
             CREATE TABLE series(
-                id INTEGER PRIMARY UNIQUE KEY,
+                id INTEGER PRIMARY KEY UNIQUE,
                 "full name" TEXT,
                 name TEXT,
                 "last season" INTEGER,
                 "last episode" INTEGER,
                 "total episodes" INTEGER,
                 "date added" TEXT)
-            '''
-        if view_flag or export_flag: #we need whole DB for both
+            ''')
+        if args.view_flag or args.export_flag: #we need whole DB for both
             cursor.execute("SELECT * FROM series")
             db_items = cursor.fetchall()
         #view
-        if view_flag:
+        if args.view_flag:
             view(db_items)
         #settings
-        if settings_flag:
-            settings_dict = settings(settings_dict)
+        if args.settings_flag:
+            settings_dict = settings(settings_dict, args)
             write_settings(settings_path, settings_dict)
         #add
-        if add_flag:
+        if args.add_flag:
             #TODO: add show to DB
-            if cli_flag:
+            if args.cli_flag:
                 pass
             else:
                 pass
         #edit
         #delete
         #export
-        if export_flag:
+        if args.export_flag:
             if export_id in settings:
                 settings['export_id'] = 1
             else:
@@ -121,45 +121,27 @@ def remove():
     pass
 
 
-def get_scripts_path():
-    res=[]
-    env = os.environ['path'].split(';')
-    for i in env:
-        if "python2" in i.lower() and "script" in i.lower():
-            res+=[i]
-    return res
-
-
-def settings(settings_dict):
+def settings(settings_dict, args):
     #TODO:update player path, export path, etc. in cli/gui and create watch.cmd there
     if settings_dict:
         old_settings_dict = settings_dict
-        settings_dict = {}
     else:
         #default settings
         old_settings_dict = dict(
-            'player_path' = DEFAULT_VLC_PATH
-            'export_path' = USER_HOME
+            player_path = DEFAULT_VLC_PATH,
+            export_path = USER_HOME,
             )
-        #put watch.cmd in python scripts
-        scripts_path = get_scripts_path()
-        if not scripts_path: #cannot activate watch using winkey+R without this one
-            raise Exception('The python scripts folder is not in your environment path. Please add it to finish installation.')
-        else:
-            scripts_path = scripts_path[0]
-            old_cmd_file_path = path.join(scripts_path, CMD_FILE_NAME)
-            with open (old_cmd_file_path, "w+") as f:
-                f.write(CMD_FILE_CONTENT)
-    if cli_flag: #CLI
+    settings_dict = {}
+    if args.cli_flag: #CLI
         #TODO: go over settings one by one
         print "Type in each setting to change it, leave blank for no changes (old value in parentheses)"
-        for k,v in old_settings_dict.get_values():
+        for k,v in old_settings_dict.iteritems():
             prompt_text = str(k) + '(' + str(v) + '):'
             new_setting = raw_input(prompt_text)
             settings_dict[k] = new_setting if new_setting else v
     else: #GUI
         pass
-    
+    return settings_dict
 
 
 def export(export_file_path, db_items):
@@ -171,21 +153,14 @@ def view():
 
 
 def read_settings(file):
-    res={}
     with open(file, 'r') as f:
-        f.seek(0)
-        lines=f.readlines()
-        for line in lines:
-            k,v = line.split(':')
-            res[k]=v
-    return res
+        ret = json.load(f)
+    return ret
 
 
 def write_settings(file, settings_dict):
     with open(file, 'w+') as f:
-        f.truncate(0)
-        for k,v in settings_dict.iteritems():
-            f.write(k + ':' + v + '\n')
+        json.dump(settings_dict, f)
     return
 
 
