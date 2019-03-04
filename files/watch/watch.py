@@ -3,6 +3,7 @@ import argparse
 import sqlite3
 import csv
 import json
+import sys
 from os import path
 from datetime import datetime
 
@@ -12,32 +13,14 @@ USER_HOME = path.expanduser('~')
 
 def watch():
     try:
+        assert sys.platform.startswith('win'), "watch.py is for windows only."
         args = parse() #-h stops here
         print vars(args) #TODO: delete this line when done
         #get settings and db
         cwd = path.dirname(path.realpath(__file__))
-        db_path = path.join(cwd, "db")
-        settings_path = path.join(cwd, "settings")
-        if path.isfile(settings_path):
-            settings_dict = read_settings(settings_path)
-        elif not args.settings_flag:
-            raise Exception("The settings file is missing or corrupt. Please use 'watch -s'")
-        else:
-            settings_dict = None
-        db_exists = path.isfile(db_path)
-        db = sqlite3.connect(db_path)
-        cursor = db.cursor()
-        if not db_exists: #new db
-            cursor.execute('''
-            CREATE TABLE series(
-                id INTEGER PRIMARY KEY UNIQUE,
-                "full name" TEXT,
-                name TEXT,
-                "last season" INTEGER,
-                "last episode" INTEGER,
-                "total episodes" INTEGER,
-                "date added" TEXT)
-            ''')
+        settings_dict = get_settings(args.settings_flag, cwd)
+        db, cursor = get_db(cwd)
+        #get whole db
         if args.view_flag or args.export_flag: #we need whole DB for both
             cursor.execute("SELECT * FROM series")
             db_items = cursor.fetchall()
@@ -46,15 +29,11 @@ def watch():
             view(db_items)
         #settings
         if args.settings_flag:
-            settings_dict = settings(settings_dict, args)
-            write_settings(settings_path, settings_dict)
+            settings_dict = settings(settings_dict, args.cli_flag, cwd)
         #add
         if args.add_flag:
             #TODO: add show to DB
-            if args.cli_flag:
-                pass
-            else:
-                pass
+            add(db, cursor, cli)
         #edit
         #delete
         #export
@@ -78,6 +57,7 @@ def watch():
         db.close()
     except Exception as e:
         print "Error:", e
+        sys.exit(1)
 
 
 def parse():
@@ -109,30 +89,37 @@ def parse():
     return parser.parse_args()
 
 
-def add():
-    pass
+def add(db, cursor, flag):
+    #TODO
+    if flag:
+        pass
+    else:
+        pass
 
 
 def edit():
+    #TODO
     pass
 
 
 def remove():
+    #TODO
     pass
 
 
-def settings(settings_dict, args):
+def settings(settings_dict, cli, cwd):
     #TODO:update player path, export path, etc. in cli/gui and create watch.cmd there
+    settings_path = path.join(cwd, "settings")
     if settings_dict:
         old_settings_dict = settings_dict
+        settings_dict = {}
     else:
         #default settings
         old_settings_dict = dict(
             player_path = DEFAULT_VLC_PATH,
             export_path = USER_HOME,
             )
-    settings_dict = {}
-    if args.cli_flag: #CLI
+    if cli: #CLI
         #TODO: go over settings one by one
         print "Type in each setting to change it, leave blank for no changes (old value in parentheses)"
         for k,v in old_settings_dict.iteritems():
@@ -141,14 +128,17 @@ def settings(settings_dict, args):
             settings_dict[k] = new_setting if new_setting else v
     else: #GUI
         pass
+    write_settings(settings_path, settings_dict)
     return settings_dict
 
 
 def export(export_file_path, db_items):
+    #TODO: write db to csv in export_file_path
     pass
 
 
 def view():
+    #TODO: print the db , formatted
     pass
 
 
@@ -162,6 +152,38 @@ def write_settings(file, settings_dict):
     with open(file, 'w+') as f:
         json.dump(settings_dict, f)
     return
+
+
+def get_settings(flag, cwd):
+    settings_path = path.join(cwd, "settings")
+    if path.isfile(settings_path):
+        settings_dict = read_settings(settings_path)
+    elif not flag:
+        raise Exception("The settings file is missing or corrupt. Please use 'watch -s'")
+    else:
+        settings_dict = {}
+    return settings_dict
+
+
+def get_db(cwd):
+    db_path = path.join(cwd, "db")
+    db_exists = path.isfile(db_path)
+    db = sqlite3.connect(db_path)
+    cursor = db.cursor()
+    if not db_exists: #new db
+        cursor.execute('''
+        CREATE TABLE series(
+            id INTEGER PRIMARY KEY UNIQUE,
+            "full name" TEXT,
+            name TEXT,
+            "last season" INTEGER,
+            "last episode" INTEGER,
+            "total episodes" INTEGER,
+            "date
+            added" TEXT)
+        ''')
+    db.commit
+    return db, cursor
 
 
 if __name__ == '__main__':

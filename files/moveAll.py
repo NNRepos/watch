@@ -4,6 +4,7 @@ import sys
 import shutil
 from os import path
 
+# try:
 py_path = path.dirname(sys.executable)
 here = path.dirname(path.realpath(__file__))
 
@@ -20,3 +21,5 @@ shutil.copytree(path.join(here, 'watch'), path_to_watch_folder)
 cmd_file_content = '@python "' + path_to_watch_py + r'" %1 %2 %3 %4 %5 %6 %7 %8 %9'
 with open(path_to_watch_cmd, "w+") as f:
     f.write(cmd_file_content)
+# except Exception as e:
+    # print e
