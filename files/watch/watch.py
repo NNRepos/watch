@@ -4,6 +4,7 @@ import sqlite3
 import csv
 import json
 import sys
+import re
 from os import path
 from datetime import datetime
 
@@ -31,10 +32,13 @@ def watch():
             settings_dict = settings(settings_dict, args.cli_flag, cwd)
         #add
         if args.add_flag:
-            #TODO: add show to DB
             add(db, cursor, args.cli_flag)
         #edit
-        #delete
+        if args.edit_flag:
+            edit(db, cursor, args.cli_flag)
+        #remove
+        if args.remove_flag:
+            remove(db, cursor, args.cli_flag)
         #export
         if args.export_flag:
             if export_id in settings:
@@ -89,7 +93,6 @@ def parse():
 
 
 def add(db, cursor, cli):
-    #TODO
     new_series = {
         'name' : "",
         'full_name' : "",
@@ -98,26 +101,54 @@ def add(db, cursor, cli):
     if cli:
         print "Type in the following values:"
         for k,v in new_series.iteritems():
-            prompt_text = str(k) + ':'
+            prompt_text = unslugify(str(k)) + ':'
             new_series[k] = raw_input(prompt_text)
     else: #GUI
         pass
     new_series['last_season_watched'] = 1
     new_series['last_episode_watched'] = 1
     new_series['total_episodes_watched'] = 0
-    new_series['date_added'] = datetime.now() #TODO: format this
+    new_series['date_added'] = datetime.now().strftime("%B %m, %Y, %H:%M:%S")
     cursor.execute('''INSERT INTO series(name, "full name", path, "last season watched", "last episode watched", "total episodes watched", "date added")
         VALUES(:name, :full_name, :path, :last_season_watched, :last_episode_watched, :total_episodes_watched, :date_added)
     ''', new_series)
     db.commit()
 
 
-def edit():
-    #TODO
-    pass
+def edit(db, cursor, cli):
+    dict_keys = ('id', 'name', 'full_name', 'path', 'last_season_watched', 
+        'last_episode_watched', 'total_episodes_watched', 'date_added')
+    if cli:
+        series_name = raw_input("Enter the name(short) of the series you want to edit(use watch -v to view your series):")
+        cursor.execute('''SELECT * FROM series WHERE name=?''', (series_name,))
+        result = cursor.fetchone()
+        if not result:
+            raise Exception("no series with such name.")
+        series = dict(zip(dict_keys, result))
+        print "Type in each value to edit the field, leave blank for no changes (old value in parentheses)"
+        for k,v in series.iteritems():
+            if k=='id':
+                continue
+            prompt_text = unslugify(str(k)) + '(' + str(v) + '):'
+            new_value = raw_input(prompt_text)
+            if k=='last_episode_watched' or k=='last_season_watched' or k=='total_episodes_watched':
+                try:
+                    int(new_value)
+                except Exception:
+                    raise Exception(str(k) + " has to be a number.")
+            series[k] = new_value if new_value else v
+    else: #GUI
+        pass
+    #store in db
+    cursor.execute('''DELETE FROM series WHERE name=?''', (series_name,))
+    cursor.execute('''INSERT INTO series(name, "full name", path, "last season watched", "last episode watched", "total episodes watched", "date added")
+        VALUES(:name, :full_name, :path, :last_season_watched, :last_episode_watched, :total_episodes_watched, :date_added)
+    ''', series)
+    db.commit()
+    raw_input("edit successful.")
 
 
-def remove():
+def remove(db, cursor, cli):
     #TODO
     pass
 
@@ -138,7 +169,7 @@ def settings(settings_dict, cli, cwd):
         #TODO: go over settings one by one
         print "Type in each setting to change it, leave blank for no changes (old value in parentheses)"
         for k,v in old_settings_dict.iteritems():
-            prompt_text = str(k) + '(' + str(v) + '):'
+            prompt_text = unslugify(str(k)) + '(' + str(v) + '):'
             new_setting = raw_input(prompt_text)
             settings_dict[k] = new_setting if new_setting else v
     else: #GUI
@@ -177,7 +208,7 @@ def get_settings(flag, cwd):
         settings_dict = read_settings(settings_path)
     elif not flag:
         raise Exception("The settings file is missing or corrupt. Please use 'watch -s'")
-    else:
+    else:   
         settings_dict = {}
     return settings_dict
 
@@ -203,5 +234,11 @@ def get_db(cwd):
     return db, cursor
 
 
+def slugify(str):
+    return re.sub(' ', '_', str)
+
+
+def unslugify(str):
+    return re.sub('_', ' ', str)
 if __name__ == '__main__':
     watch()
