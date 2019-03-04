@@ -166,7 +166,6 @@ def settings(settings_dict, cli, cwd):
             'export path' : USER_HOME,
             }
     if cli:
-        #TODO: go over settings one by one
         print "Type in each setting to change it, leave blank for no changes (old value in parentheses)"
         for k,v in old_settings_dict.iteritems():
             prompt_text = unslugify(str(k)) + '(' + str(v) + '):'
@@ -184,9 +183,17 @@ def export(export_file_path, db_items):
 
 
 def view(db_items):
-    #TODO: print the db , formatted
-    for row in db_items:
-        print row
+    if db_items:
+        keys = ('id', 'name', 'full name', 'path',
+            'last season watched', 'last episode watched',
+            'total episodes watched', 'date added')
+        print "printing database:"
+        for row in db_items:
+            for k,v in zip(keys, row):
+                print (str(k) + ": " + str(v)).center(80,' ')
+            print ''.center(80,'_')
+    else:
+        print "it seems like the database is empty."
     raw_input("press enter to proceed")
 
 
