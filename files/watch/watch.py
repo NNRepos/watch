@@ -15,7 +15,6 @@ def watch():
     try:
         assert sys.platform.startswith('win'), "watch.py is for windows only."
         args = parse() #-h stops here
-        print vars(args) #TODO: delete this line when done
         #get settings and db
         cwd = path.dirname(path.realpath(__file__))
         settings_dict = get_settings(args.settings_flag, cwd)
@@ -33,7 +32,7 @@ def watch():
         #add
         if args.add_flag:
             #TODO: add show to DB
-            add(db, cursor, cli)
+            add(db, cursor, args.cli_flag)
         #edit
         #delete
         #export
@@ -89,12 +88,28 @@ def parse():
     return parser.parse_args()
 
 
-def add(db, cursor, flag):
+def add(db, cursor, cli):
     #TODO
-    if flag:
+    new_series = {
+        'name' : "",
+        'full_name' : "",
+        'path' : ""
+    }
+    if cli:
+        print "Type in the following values:"
+        for k,v in new_series.iteritems():
+            prompt_text = str(k) + ':'
+            new_series[k] = raw_input(prompt_text)
+    else: #GUI
         pass
-    else:
-        pass
+    new_series['last_season_watched'] = 1
+    new_series['last_episode_watched'] = 1
+    new_series['total_episodes_watched'] = 0
+    new_series['date_added'] = datetime.now() #TODO: format this
+    cursor.execute('''INSERT INTO series(name, "full name", path, "last season watched", "last episode watched", "total episodes watched", "date added")
+        VALUES(:name, :full_name, :path, :last_season_watched, :last_episode_watched, :total_episodes_watched, :date_added)
+    ''', new_series)
+    db.commit()
 
 
 def edit():
@@ -108,18 +123,18 @@ def remove():
 
 
 def settings(settings_dict, cli, cwd):
-    #TODO:update player path, export path, etc. in cli/gui and create watch.cmd there
+    #TODO: GUI
     settings_path = path.join(cwd, "settings")
     if settings_dict:
         old_settings_dict = settings_dict
         settings_dict = {}
     else:
         #default settings
-        old_settings_dict = dict(
-            player_path = DEFAULT_VLC_PATH,
-            export_path = USER_HOME,
-            )
-    if cli: #CLI
+        old_settings_dict = {
+            'player path' : DEFAULT_VLC_PATH,
+            'export path' : USER_HOME,
+            }
+    if cli:
         #TODO: go over settings one by one
         print "Type in each setting to change it, leave blank for no changes (old value in parentheses)"
         for k,v in old_settings_dict.iteritems():
@@ -137,9 +152,11 @@ def export(export_file_path, db_items):
     pass
 
 
-def view():
+def view(db_items):
     #TODO: print the db , formatted
-    pass
+    for row in db_items:
+        print row
+    raw_input("press enter to proceed")
 
 
 def read_settings(file):
@@ -174,13 +191,13 @@ def get_db(cwd):
         cursor.execute('''
         CREATE TABLE series(
             id INTEGER PRIMARY KEY UNIQUE,
+            name TEXT UNIQUE,
             "full name" TEXT,
-            name TEXT,
-            "last season" INTEGER,
-            "last episode" INTEGER,
-            "total episodes" INTEGER,
-            "date
-            added" TEXT)
+            path TEXT,
+            "last season watched" INTEGER,
+            "last episode watched" INTEGER,
+            "total episodes watched" INTEGER,
+            "date added" TEXT)
         ''')
     db.commit
     return db, cursor

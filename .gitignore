@@ -103,5 +103,6 @@ venv.bak/
 # mypy
 .mypy_cache/
 
-# test directory
+# for testing purposes
 install_dir/
+populate.cmd
