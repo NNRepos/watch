@@ -41,14 +41,14 @@ def watch():
             remove(db, cursor, args.cli_flag)
         #export
         if args.export_flag:
-            if export_id in settings:
-                settings['export_id'] = 1
-            else:
-                settings['export_id'] += 1
-            #TODO: get export file location from settings, decide file name (settings), create csv
+            if 'export id' not in settings_dict:
+                settings_dict['export id'] = 0
+            settings_dict['export id'] += 1
+            export_file_name = "series" + "{:>03}".format(settings_dict['export id']) + ".csv"
+            export_file_path = path.join(settings_dict['export path'], export_file_name)
             export(export_file_path, db_items)
         #watch series
-        if args.series_name:
+        if args.series_name: #TODO
             if args.season:
                 if args.episode: #watch <series_name> S<season>E<episode>
                     pass
@@ -81,7 +81,7 @@ def parse():
     group1.add_argument('-e','--edit', help="edit a series you've already added, keeping the last and total episodes watched", action='store_true', dest='edit_flag')
     group1.add_argument('-r','--remove', help="remove a series you've added completely.", action='store_true', dest='remove_flag')
     group1.add_argument('-s','--settings', help="edit the settings", action='store_true', dest='settings_flag')
-    group1.add_argument('-x','--export', help="export series stats to excel file", action='store_true', dest='export_flag')
+    group1.add_argument('-x','--export', help="export series stats to csv(excel) file", action='store_true', dest='export_flag')
     
     parser.add_argument('-v','--view', help="print series stats on terminal", action='store_true', dest='view_flag')
     parser.add_argument('series_name', help="the name of the series to be watched, as specified when added", nargs='?')
@@ -116,14 +116,13 @@ def add(db, cursor, cli):
 
 
 def edit(db, cursor, cli):
-    dict_keys = ('id', 'name', 'full_name', 'path', 'last_season_watched', 
-        'last_episode_watched', 'total_episodes_watched', 'date_added')
-    if cli:
+    if cli: #TODO: use if cli else in between common lines
         series_name = raw_input("Enter the name(short) of the series you want to edit(use watch -v to view your series):")
         cursor.execute('''SELECT * FROM series WHERE name=?''', (series_name,))
         result = cursor.fetchone()
         if not result:
             raise Exception("no series with such name.")
+        dict_keys = map(slugify, result.keys())
         series = dict(zip(dict_keys, result))
         print "Type in each value to edit the field, leave blank for no changes (old value in parentheses)"
         for k,v in series.iteritems():
@@ -136,7 +135,7 @@ def edit(db, cursor, cli):
                     int(new_value)
                 except Exception:
                     raise Exception(str(k) + " has to be a number.")
-            series[k] = new_value if new_value else v
+            series[k] = new_value or v
     else: #GUI
         pass
     #store in db
@@ -149,8 +148,19 @@ def edit(db, cursor, cli):
 
 
 def remove(db, cursor, cli):
-    #TODO
-    pass
+    if cli: #TODO: use if cli else in between common lines
+        series_name = raw_input("Enter the name(short) of the series you want to edit(use watch -v to view your series):")
+        cursor.execute('''SELECT * FROM series WHERE name=?''', (series_name,))
+        result = cursor.fetchone()
+        if not result:
+            raise Exception("no series with such name.")
+        
+    else: #GUI
+        pass
+    #remove from db
+    cursor.execute('''DELETE FROM series WHERE name=?''', (series_name,))
+    db.commit()
+    raw_input("removal successful.")
 
 
 def settings(settings_dict, cli, cwd):
@@ -170,7 +180,7 @@ def settings(settings_dict, cli, cwd):
         for k,v in old_settings_dict.iteritems():
             prompt_text = unslugify(str(k)) + '(' + str(v) + '):'
             new_setting = raw_input(prompt_text)
-            settings_dict[k] = new_setting if new_setting else v
+            settings_dict[k] = new_setting or v
     else: #GUI
         pass
     write_settings(settings_path, settings_dict)
@@ -178,15 +188,20 @@ def settings(settings_dict, cli, cwd):
 
 
 def export(export_file_path, db_items):
-    #TODO: write db to csv in export_file_path
-    pass
+    with open(export_file_path, "wb") as f:
+        if db_items:
+            writer = csv.writer(f)
+            writer.writerow(db_items[0].keys())
+            print len(db_items)
+            for row in db_items:
+                writer.writerow(row)
+        else:
+            f.write("The database is empty.")
 
 
 def view(db_items):
     if db_items:
-        keys = ('id', 'name', 'full name', 'path',
-            'last season watched', 'last episode watched',
-            'total episodes watched', 'date added')
+        keys = db_items[0].keys()
         print "printing database:"
         for row in db_items:
             for k,v in zip(keys, row):
@@ -224,6 +239,7 @@ def get_db(cwd):
     db_path = path.join(cwd, "db")
     db_exists = path.isfile(db_path)
     db = sqlite3.connect(db_path)
+    db.row_factory = sqlite3.Row
     cursor = db.cursor()
     if not db_exists: #new db
         cursor.execute('''
