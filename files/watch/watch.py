@@ -10,7 +10,10 @@ from datetime import datetime
 from subprocess import Popen
 
 #parameters
+DEFAULT_WMP_PATH = r"C:\Program Files (x86)\Windows Media Player\wmplayer.exe"
 DEFAULT_VLC_PATH = r"C:\Program Files (x86)\VideoLAN\VLC\vlc.exe"
+DEFAULT_MPC_PATH = r"C:\Program Files\MPC-HC\mpc-hc64.exe"
+#"D:\downloads\Game.of.Thrones.Season.1-6.S01-S06.1080p.10bit.5.1.BluRay.x265.HEVC-MZABI"
 USER_HOME = path.expanduser('~')
 VIDEO_FILE_EXTENSIONS = r"(webm|mkv|flv|vob|ogv|ogg|drc|gifv|mng|avi|mts|m2ts|mov|qt|wmv|yuv|rm|rmvb|asf|amv|mp4|m4p|m4v|mpg|mp2|mpeg|mpe|mpv|m2v|svi|3gp|3g2|mxf|roq|nsv|f4v|f4p|f4a|f4b)" #no gifs
 
@@ -89,7 +92,7 @@ def watch():
             write_settings(settings_path, settings_dict)
             play(settings_dict, series_dict)
     except Exception as e:
-        print "Error: ", e #, "at", sys.exc_info()[2].tb_lineno
+        print "Error:", e #, "at", sys.exc_info()[2].tb_lineno
         sys.exit(1)
     finally:
         db.close()
@@ -210,9 +213,26 @@ def settings(settings_dict, cli, settings_path):
     if cli:
         print "Type in each setting to change it, leave blank for no changes (old value in parentheses)"
         for k,v in old_settings_dict.iteritems():
+            if k == 'player path':
+                print "type wmp for default Windows Media Player path, and same for vlc/mpc"
             prompt_text = unslugify(str(k)) + '(' + str(v) + '):'
-            new_setting = raw_input(prompt_text)
-            settings_dict[k] = new_setting or v
+            new_setting = raw_input(prompt_text).strip(''''"''') or v
+            if k == 'player path':
+                nslow = new_setting.lower()
+                if nslow == 'wmp':
+                    new_setting = DEFAULT_WMP_PATH
+                elif nslow == 'vlc':
+                    new_setting = DEFAULT_VLC_PATH
+                elif nslow == 'mpc':
+                    new_setting = DEFAULT_MPC_PATH
+                if not path.isfile(new_setting):
+                    raise Exception('The player path is incorrect')
+                if new_setting.endswith('lnk'):
+                    raise Exception('The player path must not be a shortcut')
+            if k == 'export path':
+                if not path.isdir(new_setting):
+                    raise Exception('The export path is incorrect')
+            settings_dict[k] = new_setting
     else: #GUI
         pass
     write_settings(settings_path, settings_dict)
@@ -245,8 +265,8 @@ def view(db_items):
         print "printing database:"
         for row in db_items:
             for k,v in zip(keys, row):
-                print (str(k) + ": " + str(v)).center(80,' ')
-            print ''.center(80,'_')
+                print (str(k) + ": " + str(v)).center(119,' ')
+            print ''.center(119,'_')
     else:
         print "looks like the database is empty."
     raw_input("press enter to proceed")
@@ -267,8 +287,11 @@ def write_settings(file, settings_dict):
 def get_settings(flag, settings_path): #TODO: make sure no1 using settings b4 they exist
     if path.isfile(settings_path):
         settings_dict = read_settings(settings_path)
+        if 'player path' not in settings_dict or \
+            'export path' not in settings_dict:
+            raise Exception("The settings file is corrupt. Please delete it from site-packages, and use 'watch -s'")
     elif not flag:
-        raise Exception("The settings file is missing or corrupt. Please use 'watch -s'")
+        raise Exception("The settings file is missing. Please use 'watch -s'")
     else:   
         settings_dict = {}
     return settings_dict
@@ -364,4 +387,7 @@ def play(settings_dict, series_dict): #TODO
 
 
 if __name__ == '__main__':
-    watch()
+    try:
+        watch()
+    except KeyboardInterrupt:
+        print "Leaving already?"
