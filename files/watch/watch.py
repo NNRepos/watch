@@ -13,7 +13,6 @@ from subprocess import Popen
 DEFAULT_WMP_PATH = r"C:\Program Files (x86)\Windows Media Player\wmplayer.exe"
 DEFAULT_VLC_PATH = r"C:\Program Files (x86)\VideoLAN\VLC\vlc.exe"
 DEFAULT_MPC_PATH = r"C:\Program Files\MPC-HC\mpc-hc64.exe"
-#"D:\downloads\Game.of.Thrones.Season.1-6.S01-S06.1080p.10bit.5.1.BluRay.x265.HEVC-MZABI"
 USER_HOME = path.expanduser('~')
 VIDEO_FILE_EXTENSIONS = r"(webm|mkv|flv|vob|ogv|ogg|drc|gifv|mng|avi|mts|m2ts|mov|qt|wmv|yuv|rm|rmvb|asf|amv|mp4|m4p|m4v|mpg|mp2|mpeg|mpe|mpv|m2v|svi|3gp|3g2|mxf|roq|nsv|f4v|f4p|f4a|f4b)" #no gifs
 
@@ -34,16 +33,16 @@ def watch():
             view(db_items)
         #settings
         if args.settings_flag:
-            settings_dict = settings(settings_dict, args.cli_flag, settings_path)
+            settings_dict = settings(settings_dict, settings_path)
         #add
         if args.add_flag:
-            add(db, cursor, args.cli_flag)
+            add(db, cursor)
         #edit
         if args.edit_flag:
-            edit(db, cursor, args.cli_flag)
+            edit(db, cursor)
         #remove
         if args.remove_flag:
-            remove(db, cursor, args.cli_flag)
+            remove(db, cursor)
         #export
         if args.export_flag:
             export(settings_dict, settings_path, db_items)
@@ -122,26 +121,22 @@ def parse():
     parser.add_argument('series_name', help="the name of the series to be watched, as specified when added", nargs='?')
     parser.add_argument('season', help="the season to be watched", nargs='?', type=int)
     parser.add_argument('episode', help="the episode to be watched", nargs='?', type=int)
-    parser.add_argument('-c','--cli', help="use with add, settings, or export, to open them in a command line interface", action='store_true', dest='cli_flag')
     
     return parser.parse_args()
 
 
-def add(db, cursor, cli):
+def add(db, cursor):
     new_series = {
         'name' : "",
         'full_name' : "",
         'path' : ""
     }
-    if cli:
-        print "Type in the following values:"
-        for k,v in new_series.iteritems():
-            prompt_text = unslugify(str(k)) + ':'
-            new_series[k] = raw_input(prompt_text)
-            if k=='path':
-                new_series[k] = new_series[k].strip(''''"''')
-    else: #GUI
-        pass
+    print "Type in the following values:"
+    for k,v in new_series.iteritems():
+        prompt_text = unslugify(str(k)) + ':'
+        new_series[k] = raw_input(prompt_text)
+        if k=='path':
+            new_series[k] = new_series[k].strip(''''"''')
     new_series['last_season_watched'] = 1
     new_series['last_episode_watched'] = 0
     new_series['total_episodes_watched'] = 0
@@ -152,31 +147,28 @@ def add(db, cursor, cli):
     db.commit()
 
 
-def edit(db, cursor, cli=False, prompt=True, series_dict=None):
+def edit(db, cursor, prompt=True, series_dict=None):
     """Edits a DB row with user interference(prompt=True),
     or without it (prompt=False, series_dict!=None).
     series_dict must be slugified.
     """
     if prompt:
-        if cli: #TODO: use if cli else in between common lines
-            series_name = raw_input("Enter the name(short) of the series you want to edit(use watch -v to view your series):")
-            series_dict = get_series_from_db(cursor, series_name)
-            print "Type in each value to edit the field, leave blank for no changes (old value in parentheses)"
-            for k,v in series_dict.iteritems():
-                if k=='id' or k=='total_episodes_watched':
-                    continue
-                prompt_text = unslugify(str(k)) + '(' + str(v) + '):'
-                new_value = raw_input(prompt_text)
-                if k=='path':
-                    series_dict[k] = series_dict[k].strip(''''"''')
-                if new_value and (k=='last_episode_watched' or k=='last_season_watched' or k=='total_episodes_watched'):
-                    try:
-                        int(new_value)
-                    except Exception:
-                        raise Exception(str(k) + " has to be a number.")
-                series_dict[k] = new_value or v
-        else: #GUI
-            pass
+        series_name = raw_input("Enter the name(short) of the series you want to edit(use watch -v to view your series):")
+        series_dict = get_series_from_db(cursor, series_name)
+        print "Type in each value to edit the field, leave blank for no changes (old value in parentheses)"
+        for k,v in series_dict.iteritems():
+            if k=='id' or k=='total_episodes_watched' or 'date_added':
+                continue
+            prompt_text = unslugify(str(k)) + '(' + str(v) + '):'
+            new_value = raw_input(prompt_text)
+            if k=='path':
+                series_dict[k] = series_dict[k].strip(''''"''')
+            if new_value and (k=='last_episode_watched' or k=='last_season_watched' or k=='total_episodes_watched'):
+                try:
+                    int(new_value)
+                except Exception:
+                    raise Exception(str(k) + " has to be a number.")
+            series_dict[k] = new_value or v
     #store in db
     cursor.execute('''DELETE FROM series WHERE name=?''', (series_dict['name'],))
     cursor.execute('''INSERT INTO series(name, "full name", path, "last season watched", "last episode watched", "total episodes watched", "date added")
@@ -187,11 +179,8 @@ def edit(db, cursor, cli=False, prompt=True, series_dict=None):
         raw_input("edit successful.")
 
 
-def remove(db, cursor, cli):
-    if cli: #TODO: use if cli else in between common lines
-        series_name = raw_input("Enter the name(short) of the series you want to remove(use watch -v to view your series):")
-    else: #GUI
-        pass
+def remove(db, cursor):
+    series_name = raw_input("Enter the name(short) of the series you want to remove(use watch -v to view your series):")
     series_dict = get_series_from_db(cursor, series_name)
     #remove from db
     cursor.execute('''DELETE FROM series WHERE name=?''', (series_dict['name'],))
@@ -199,8 +188,7 @@ def remove(db, cursor, cli):
     raw_input("removal successful.")
 
 
-def settings(settings_dict, cli, settings_path):
-    #TODO: GUI
+def settings(settings_dict, settings_path):
     if settings_dict:
         old_settings_dict = settings_dict
         settings_dict = {}
@@ -210,31 +198,28 @@ def settings(settings_dict, cli, settings_path):
             'player path' : DEFAULT_VLC_PATH,
             'export path' : USER_HOME,
             }
-    if cli:
-        print "Type in each setting to change it, leave blank for no changes (old value in parentheses)"
-        for k,v in old_settings_dict.iteritems():
-            if k == 'player path':
-                print "type wmp for default Windows Media Player path, and same for vlc/mpc"
-            prompt_text = unslugify(str(k)) + '(' + str(v) + '):'
-            new_setting = raw_input(prompt_text).strip(''''"''') or v
-            if k == 'player path':
-                nslow = new_setting.lower()
-                if nslow == 'wmp':
-                    new_setting = DEFAULT_WMP_PATH
-                elif nslow == 'vlc':
-                    new_setting = DEFAULT_VLC_PATH
-                elif nslow == 'mpc':
-                    new_setting = DEFAULT_MPC_PATH
-                if not path.isfile(new_setting):
-                    raise Exception('The player path is incorrect')
-                if new_setting.endswith('lnk'):
-                    raise Exception('The player path must not be a shortcut')
-            if k == 'export path':
-                if not path.isdir(new_setting):
-                    raise Exception('The export path is incorrect')
-            settings_dict[k] = new_setting
-    else: #GUI
-        pass
+    print "Type in each setting to change it, leave blank for no changes (old value in parentheses)"
+    for k,v in old_settings_dict.iteritems():
+        if k == 'player path':
+            print "type wmp for default Windows Media Player path, and same for vlc/mpc"
+        prompt_text = unslugify(str(k)) + '(' + str(v) + '):'
+        new_setting = raw_input(prompt_text).strip(''''"''') or v
+        if k == 'player path':
+            nslow = new_setting.lower()
+            if nslow == 'wmp':
+                new_setting = DEFAULT_WMP_PATH
+            elif nslow == 'vlc':
+                new_setting = DEFAULT_VLC_PATH
+            elif nslow == 'mpc':
+                new_setting = DEFAULT_MPC_PATH
+            if not path.isfile(new_setting):
+                raise Exception('The player path is incorrect')
+            if new_setting.endswith('lnk'):
+                raise Exception('The player path must not be a shortcut')
+        if k == 'export path':
+            if not path.isdir(new_setting):
+                raise Exception('The export path is incorrect')
+        settings_dict[k] = new_setting
     write_settings(settings_path, settings_dict)
     return settings_dict
 
@@ -284,7 +269,7 @@ def write_settings(file, settings_dict):
     return
 
 
-def get_settings(flag, settings_path): #TODO: make sure no1 using settings b4 they exist
+def get_settings(flag, settings_path):
     if path.isfile(settings_path):
         settings_dict = read_settings(settings_path)
         if 'player path' not in settings_dict or \
@@ -357,7 +342,7 @@ def find_file(series_path, season, episode):
                     found=[episode, season, path.join(root,file)]
     return found
 
-def get_next_episode(series_dict): #TODO
+def get_next_episode(series_dict):
     series_path = series_dict['path']
     episode = series_dict['last_episode_watched'] + 1
     season = series_dict['last_season_watched']
@@ -373,7 +358,7 @@ def get_next_episode(series_dict): #TODO
     found.append(total)
     return found
 
-def play(settings_dict, series_dict): #TODO
+def play(settings_dict, series_dict):
     #get video
     series_path = series_dict['path']
     episode = series_dict['last_episode_watched']
