@@ -1,10 +1,11 @@
-#https://www.pythoncentral.io/introduction-to-sqlite-in-python/
 import argparse
+import Tkinter
 import sqlite3
 import csv
 import json
 import sys
 import re
+
 from os import path, walk
 from datetime import datetime
 from subprocess import Popen
@@ -18,12 +19,15 @@ USER_HOME = path.expanduser('~')
 VIDEO_FILE_EXTENSIONS = r"(webm|mkv|flv|vob|ogv|ogg|drc|gifv|mng|avi|mts|m2ts|mov|qt|wmv|yuv|rm|rmvb|asf|amv|mp4|m4p|m4v|mpg|mp2|mpeg|mpe|mpv|m2v|svi|3gp|3g2|mxf|roq|nsv|f4v|f4p|f4a|f4b)" #no gifs
 
 def watch():
+    """This is the main function, parses the arguments and activates the other functions.
+    """
     try:
         cwd = path.dirname(path.realpath(__file__)) #watch.py's directory
         settings_path = path.join(cwd, "settings")
         db, cursor = get_db(cwd) #create db in watch.py's directory
         assert sys.platform.startswith('win'), "watch.py is for windows only."
-        args = parse() #-h stops here
+        parser = parse() #-h stops here
+        args = parser.parse_args()
         settings_dict = get_settings(args.settings_flag, settings_path)
         #get whole db
         if args.view_flag or args.export_flag: #we need whole DB for both
@@ -78,7 +82,8 @@ def watch():
                 episode, season, _, total = get_next_episode(series_dict)
                 prepared = True
             else:
-                raise Exception("To watch a series for the first time, use watch <name> or watch <name> <season> <episode>")
+                parser.print_help()
+                raw_input()
             
         #actually watch
         if prepared:
@@ -93,6 +98,7 @@ def watch():
             play(settings_dict, series_dict)
     except Exception as e:
         print "Error:", e #, "at", sys.exc_info()[2].tb_lineno
+        raw_input()
         sys.exit(1)
     finally:
         db.close()
@@ -107,7 +113,12 @@ def parse():
         "1. watch GoT 1 4 : Watch first season, fourth episode of the series you added as 'got'.\n"
         "2. watch Vikings : Watch the next episode of the series you added as 'vikings'.\n" +
         "3. watch -vx : Print and export your watch stats.",
-        epilog='it is recommended to set up the settings, add a series, and then use watch \r\nwithout parameters until the last episode of the series',
+        epilog="" +
+        "it is recommended to use watch the following way:\n" +
+        "1. set up the settings (e.g. during installation)\n" +
+        "2. add a series using watch -a\n" +
+        "3. watch the series once using watch <series_name>, and\n" +
+        "4. use watch without parameters until the last episode of the series",
         usage='watch [series_name [season episode]] [-h] [-a | -e | -r | -s | -x] [-v] [-c]',
         formatter_class=argparse.RawDescriptionHelpFormatter)
     
@@ -124,7 +135,7 @@ def parse():
     parser.add_argument('episode', help="the episode to be watched", nargs='?', type=int)
     parser.add_argument('-c','--cli', help="use with add, settings, or export, to open them in a command line interface", action='store_true', dest='cli_flag')
     
-    return parser.parse_args()
+    return parser
 
 
 def add(db, cursor, cli):
