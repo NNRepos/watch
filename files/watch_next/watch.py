@@ -18,6 +18,15 @@ DEFAULT_MPC_PATH = r"C:\Program Files\MPC-HC\mpc-hc64.exe"
 USER_HOME = path.expanduser('~')
 VIDEO_FILE_EXTENSIONS = r"(webm|mkv|flv|vob|ogv|ogg|drc|gifv|mng|avi|mts|m2ts|mov|qt|wmv|yuv|rm|rmvb|asf|amv|mp4|m4p|m4v|mpg|mp2|mpeg|mpe|mpv|m2v|svi|3gp|3g2|mxf|roq|nsv|f4v|f4p|f4a|f4b)" #no gifs
 
+#override ArgumentParser because it sucks at errors
+class ArgumentParser(argparse.ArgumentParser):
+
+    def error(self, message):
+        self.print_help(sys.stderr)
+        raw_input()
+        self.exit(2, 'Error: %s\n' % (message))
+
+
 def watch():
     """This is the main function, parses the arguments and activates the other functions.
     """
@@ -56,7 +65,7 @@ def watch():
         
         #if specified in args
         if args.series_name: 
-            series_dict = get_series_from_db(cursor, args.series_name)
+            series_dict = get_series_from_db(cursor, args.series_name.lower())
             if args.season:
                 if args.episode: #watch <series_name> S<season>E<episode>
                     try:
@@ -105,7 +114,7 @@ def watch():
 
 
 def parse():
-    parser = argparse.ArgumentParser(prog='watch',
+    parser = ArgumentParser(prog='watch',
         description="" +
         "watch an episode of a series in your selected video player. Use watch -s to \n" +
         "change settings (already done if installed correctly), then add a series with \n" +
@@ -115,17 +124,17 @@ def parse():
         "3. watch -vx : Print and export your watch stats.",
         epilog="" +
         "it is recommended to use watch the following way:\n" +
-        "1. set up the settings (e.g. during installation)\n" +
+        "1. set up the settings (i.e. run install.cmd)\n" +
         "2. add a series using watch -a\n" +
         "3. watch the series once using watch <series_name>, and\n" +
         "4. use watch without parameters until the last episode of the series",
-        usage='watch [series_name [season episode]] [-h] [-a | -e | -r | -s | -x] [-v] [-c]',
+        usage='watch [series_name [season episode]] [-a | -e | -r | -s | -x] [-v] [-h]',
         formatter_class=argparse.RawDescriptionHelpFormatter)
     
     group1 = parser.add_mutually_exclusive_group()
     group1.add_argument('-a','--add', help="add a new series to watch", action='store_true', dest='add_flag')
-    group1.add_argument('-e','--edit', help="edit a series you've already added, keeping the last and total episodes watched", action='store_true', dest='edit_flag')
-    group1.add_argument('-r','--remove', help="remove a series you've added completely.", action='store_true', dest='remove_flag')
+    group1.add_argument('-e','--edit', help="edit a series", action='store_true', dest='edit_flag')
+    group1.add_argument('-r','--remove', help="remove a series completely.", action='store_true', dest='remove_flag')
     group1.add_argument('-s','--settings', help="edit the settings", action='store_true', dest='settings_flag')
     group1.add_argument('-x','--export', help="export series stats to csv(excel) file", action='store_true', dest='export_flag')
     
@@ -151,6 +160,8 @@ def add(db, cursor, cli):
             new_series[k] = raw_input(prompt_text)
             if k=='path':
                 new_series[k] = new_series[k].strip(''''"''')
+            if k=='name':
+                new_series[k] = new_series[k].lower()
     else: #GUI
         pass
     new_series['last_season_watched'] = 1
@@ -180,6 +191,8 @@ def edit(db, cursor, cli=False, prompt=True, series_dict=None):
                 new_value = raw_input(prompt_text)
                 if k=='path':
                     series_dict[k] = series_dict[k].strip(''''"''')
+                if k=='name':
+                    series_dict[k] = series_dict[k].lower()
                 if new_value and (k=='last_episode_watched' or k=='last_season_watched' or k=='total_episodes_watched'):
                     try:
                         int(new_value)
@@ -340,7 +353,7 @@ def unslugify(str):
 
 def get_series_from_db(cursor, series_name):
     cursor.execute('''SELECT * FROM series WHERE name = ?''',
-        (series_name,))
+        (series_name.lower(),))
     result = cursor.fetchone()
     if not result:
         raise Exception("no series with such name: " + str(series_name))
@@ -401,4 +414,7 @@ if __name__ == '__main__':
     try:
         watch()
     except KeyboardInterrupt:
-        print "Leaving already?"
+        raw_input("Leaving already?")
+    except Exception as e:
+        print e
+        raw_input()
