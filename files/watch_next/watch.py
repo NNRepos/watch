@@ -1,5 +1,5 @@
+import Tkinter as Tk
 import argparse
-import Tkinter
 import sqlite3
 import csv
 import json
@@ -7,8 +7,8 @@ import sys
 import re
 
 from os import path, walk
-from datetime import datetime
 from subprocess import Popen
+from datetime import datetime
 
 #parameters
 DEFAULT_WMP_PATH = r"C:\Program Files (x86)\Windows Media Player\wmplayer.exe"
@@ -158,19 +158,38 @@ def add(db, cursor, cli):
         for k,v in new_series.iteritems():
             prompt_text = unslugify(str(k)) + ':'
             new_series[k] = raw_input(prompt_text)
-            if k=='path':
-                new_series[k] = new_series[k].strip(''''"''')
-            if k=='name':
-                new_series[k] = new_series[k].lower()
+        new_series['name'] = new_series['name'].lower()
+        new_series['path'] = new_series['path'].strip(''''"''')
+        new_series['last_season_watched'] = 1
+        new_series['last_episode_watched'] = 0
+        new_series['total_episodes_watched'] = 0
+        new_series['date_added'] = datetime.now().strftime("%B %m, %Y, %H:%M:%S")
+        cursor.execute('''INSERT INTO series(name, "full name", path, "last season watched", "last episode watched", "total episodes watched", "date added")
+            VALUES(:name, :full_name, :path, :last_season_watched, :last_episode_watched, :total_episodes_watched, :date_added)
+        ''', new_series)
     else: #GUI
-        pass
-    new_series['last_season_watched'] = 1
-    new_series['last_episode_watched'] = 0
-    new_series['total_episodes_watched'] = 0
-    new_series['date_added'] = datetime.now().strftime("%B %m, %Y, %H:%M:%S")
-    cursor.execute('''INSERT INTO series(name, "full name", path, "last season watched", "last episode watched", "total episodes watched", "date added")
-        VALUES(:name, :full_name, :path, :last_season_watched, :last_episode_watched, :total_episodes_watched, :date_added)
-    ''', new_series)
+        def submit_add(self):
+            new_series = {}
+            for entry in self.entries:
+                k,v = entry[0].cget('text'), entry[1].get()
+                new_series[k] = v
+            new_series['name'] = new_series['name'].lower()
+            new_series['path'] = new_series['path'].strip(''''"''')
+            new_series['last_season_watched'] = 1
+            new_series['last_episode_watched'] = 0
+            new_series['total_episodes_watched'] = 0
+            new_series['date_added'] = datetime.now().strftime("%B %m, %Y, %H:%M:%S")
+            try:
+                self.cursor.execute('''INSERT INTO series(name, "full name", path, "last season watched", "last episode watched", "total episodes watched", "date added")
+                VALUES(:name, :full_name, :path, :last_season_watched, :last_episode_watched, :total_episodes_watched, :date_added)
+                ''', new_series)
+                self.label['text'] = "Series " + new_series['name'] + " added successfully"
+            except sqlite3.IntegrityError as e:
+                self.label['text'] = "Series already exists."
+            except Exception as e:
+                self.label['text'] = e
+        gui = InputGUI(new_series,cursor, "add series", submit_add)
+    #both
     db.commit()
 
 
@@ -199,15 +218,30 @@ def edit(db, cursor, cli=False, prompt=True, series_dict=None):
                     except Exception:
                         raise Exception(str(k) + " has to be a number.")
                 series_dict[k] = new_value or v
+            #store in db
+            cursor.execute('''DELETE FROM series WHERE name=?''', (series_dict['name'],))
+            cursor.execute('''INSERT INTO series(name, "full name", path, "last season watched", "last episode watched", "total episodes watched", "date added")
+                VALUES(:name, :full_name, :path, :last_season_watched, :last_episode_watched, :total_episodes_watched, :date_added)
+            ''', series_dict)
         else: #GUI
             pass
+            # search_series = {'name':''}
+            # def submit_edit1(self):
+                # series_dict = get_series_from_db
+                # self.label = "series found, click quit to edit."
+            # gui1 = InputGUI(...
+            # def submit_edit2(self):
+                
+            # gui2 = InputGUI(...
     #store in db
-    cursor.execute('''DELETE FROM series WHERE name=?''', (series_dict['name'],))
-    cursor.execute('''INSERT INTO series(name, "full name", path, "last season watched", "last episode watched", "total episodes watched", "date added")
-        VALUES(:name, :full_name, :path, :last_season_watched, :last_episode_watched, :total_episodes_watched, :date_added)
-    ''', series_dict)
+    # cursor.execute('''DELETE FROM series WHERE name=?''', (series_dict['name'],))
+    # cursor.execute('''INSERT INTO series(name, "full name", path, "last season watched", "last episode watched", "total episodes watched", "date added")
+        # VALUES(:name, :full_name, :path, :last_season_watched, :last_episode_watched, :total_episodes_watched, :date_added)
+    # ''', series_dict)
+    #both
     db.commit()
-    if prompt:
+    
+    if prompt and cli:
         raw_input("edit successful.")
 
 
@@ -408,6 +442,31 @@ def play(settings_dict, series_dict): #TODO
     player_path = settings_dict['player path']
     #awaken
     Popen([player_path,found_path],stdin=None, stdout=None, stderr=None)
+
+
+class InputGUI:
+    def __init__(self, dict,cursor, title, submit_func):
+        self.root = Tk.Tk()
+        self.root.title(title)
+        self.func = submit_func
+        self.cursor = cursor
+        self.entries = []
+        entries_count = len(dict)
+        self.root.geometry("400x" + str(20*entries_count+60))
+        for i,kv in enumerate(dict.iteritems()):
+            self.entries.append([Tk.Label(self.root, text=kv[0]), Tk.Entry(self.root, width=40)])
+            self.entries[i][0].grid(row=i, column=0)
+            self.entries[i][1].grid(row=i, column=1)
+            self.entries[i][1].insert(0, kv[1])
+        
+        Tk.Button(self.root, text='Submit', command=self.submit).grid(row=entries_count+1, column=0, sticky=Tk.W)
+        Tk.Button(self.root, text='Quit', command=self.root.destroy).grid(row=entries_count+1, column=1, sticky=Tk.E, pady=4)
+        self.label = Tk.Label(self.root, text="Hit submit before quitting")
+        self.label.grid(row=entries_count, column=1)
+        self.root.mainloop()
+    
+    def submit(self):
+        self.func(self)
 
 
 if __name__ == '__main__':

@@ -2,7 +2,7 @@
 ::This script verifies the other scripts worked fine
 python -V 2>nul
 if not errorlevel 1 goto pythonOK :: this means errorlevel is less than 1
-set /p a=Error: Python is not installed correctly (or not in PATH).
+set /p a=Error: Python 2 is not installed correctly (or not in PATH).
 goto :EOF
 
 :pythonOK
